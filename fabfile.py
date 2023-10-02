@@ -3,7 +3,6 @@ from os import getenv
 from fabric import task
 from fabric.connection import Context
 from invoke import run as local
-# from decouple import config
 
 
 DEPLOY_DIR = '/app/chrome_ext_api'
@@ -22,9 +21,9 @@ def package_app(ctx: Context, path: str):
     local('rm -rf .deployments', echo=True)
     local('mkdir -p .deployments', echo=True)
     local(
-        f"tar -czvf .deployments/backend.tar.gz --exclude='.git'"
-        f"--exclude='.venv' --exclude='Pipfile*' --exclude='env.sample'"
-        f"--exclude='.vscode' --exclude='*__pycache__* --exclude='~' {path}",
+        f"tar -czvf .deployments/backend.tar.gz --exclude='.git' "
+        f"--exclude='.venv' --exclude='Pipfile*' --exclude='env.sample' "
+        f"--exclude='.vscode' --exclude='*__pycache__*' --exclude='~' {path}",
         echo=True
     )
 
@@ -47,9 +46,16 @@ def server_setup(ctx: Context):
 
 
 @task
+def push_recording(ctx: Context):
+    """Push the recording to the server"""
+    ctx.put('recording_12.mp4', '/tmp/')
+
+
+@task
 def deploy(ctx: Context):
     """Deploy the application"""
     ping_server(ctx)
     package_app(ctx, './')
     copy_files(ctx)
     server_setup(ctx)
+    push_recording(ctx)
