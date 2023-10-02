@@ -43,7 +43,7 @@ async def start_upload(
 @router.post('/upload/chunks', status_code=201)
 async def upload_chunks(
     file_id: Annotated[str, Form()],
-    chunks: Annotated[UploadFile, Form(media_type='video/x-matroska')],
+    chunk: Annotated[UploadFile, Form(media_type='video/x-matroska')],
     is_final: Annotated[bool, Form()],
     chunk_num: Annotated[int, Form()],
     background_tasks: BackgroundTasks,
@@ -52,11 +52,11 @@ async def upload_chunks(
     """
     uploads chunks of data
     """
-    print(chunks)
+    print(chunk)
 
     os.makedirs(f'{settings.CHUNKS_DIR}/{file_id}', mode=0o771, exist_ok=True)
 
-    background_tasks.add_task(save_chunk, file_id, chunks, chunk_num)
+    background_tasks.add_task(save_chunk, file_id, chunk, chunk_num)
     if is_final:
         print('final chunk recieved')
         print(f'recieved {chunk_num} chunks')
