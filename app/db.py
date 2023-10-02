@@ -1,5 +1,6 @@
 from pymongo import MongoClient
 from pymongo.database import Database
+from pymongo.client_session import ClientSession
 
 from app.settings import settings
 
@@ -14,7 +15,7 @@ client = MongoClient(URI)
 
 def get_db() -> Database:
     """
-    returns a gridfs instance tied to a collection
+    yields a db instance
     """
     session = client.start_session()
 
@@ -23,3 +24,13 @@ def get_db() -> Database:
         yield db
     finally:
         session.end_session()
+
+
+def get_db_unyield() -> tuple[Database, ClientSession]:
+    """
+    returns a db instance
+    """
+    session = client.start_session()
+
+    db = session.client.get_database(settings.DB_NAME)
+    return db, session
