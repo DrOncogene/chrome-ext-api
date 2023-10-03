@@ -18,6 +18,15 @@ openai.api_key = settings.OPENAPI_SECRET
 
 
 def make_audio_chuncks(audio_path: str, audio_file: str):
+    """
+    creates 24MB chunks of audio from audio_file 
+    saving them in audio_path
+
+    :param audio_path: path to save audio chunks
+    :param audio_file: path to audio file
+
+    :return: total number of chunks
+    """
     print('creating audio chunks')
     audio = AudioSegment.from_file(audio_file)
     channel_count = audio.channels
@@ -44,20 +53,30 @@ def make_audio_chuncks(audio_path: str, audio_file: str):
 
 
 def transcribe(channel, method, properties, body):
-    """transcription consumer"""
+    """
+    transcription callback to consume from TRANSCRIBE_QUEUE
+    extract audio from video, create 24MB chunks and transcribe
+    via openai whisper api
+    """
 
     try:
         file_id = json.loads(body).get('file_id')
         audio_dir = f'/tmp/audio_chunks/{file_id}'
         audio_file = f'{audio_dir}/{file_id}.wav'
+        video_path = f'{settings.SAVE_DIR}/{file_id}.mp4'
 
         os.makedirs(audio_dir, mode=0o771, exist_ok=True)
 
         # ffmpeg.input(f'{settings.SAVE_DIR}/{file_id}.mp4'
         #              ).output(audio_file).run()
 
-        video = mp.VideoFileClip(f'{settings.SAVE_DIR}/{file_id}.mp4')
-        audio = video.audio.write_audiofile(audio_file)
+        audio = mp.VideoFileClip(video_path).audio
+
+        if audio is None:
+            print(f'no audio in video {video_path}')
+            return
+
+        audio.write_audiofile(audio_file)
 
         total_chunks = make_audio_chuncks(audio_dir, audio_file)
 
@@ -76,13 +95,13 @@ def transcribe(channel, method, properties, body):
             {'$set': {'transcribed': True}}
         )
 
-        os.rmdir(audio_dir)
+        os.rmdir(audio_dir)  # remove audio chunks
 
         session.end_session()
-        print(f'[*] Transcription complete for video {file_id}')
+        print(f'[*] Transcription complete for video {video_path}')
     except Exception as err:
+        print(err)
         print(f"[*] Unable to process video {file_id}")
-        # print(err)
 
 
 def main():
@@ -104,7 +123,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print('Interrupted')
+        print('TRANSCRIPTION SERVICE STOPPED ❌')
         try:
             exit(0)
         except SystemExit:
