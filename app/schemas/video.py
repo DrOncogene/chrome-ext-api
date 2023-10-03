@@ -1,30 +1,17 @@
 from typing import Any
+from datetime import datetime
 
 from pydantic import BaseModel
 
 
 class VideoIn(BaseModel):
-    file_type: str = 'mp4'
-
-
-class VideoOut(BaseModel):
-    file_type: str
-    file_url: str
+    file_type: str = 'webm'
 
 
 class Video(BaseModel):
+    _id: str
     file_type: str
-    file_url: str
-    file_id: str
+    file_loc: str
     completed: bool = False
-
-
-class Chunk(BaseModel):
-    data: Any
-    blob_num: int
-    is_final: bool = False
-
-
-class ChunksIn(BaseModel):
-    file_id: str
-    chunks: list[Chunk]
+    transcribed: bool = False
+    created_at: datetime
