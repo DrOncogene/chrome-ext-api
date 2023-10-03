@@ -14,8 +14,8 @@ sudo printf %s "server {
     index index.html;
     server_name crome-ext-api.droncogene.com;
 #    server_name 35.193.20.212;
-    location /recording_12 {
-        try_files /tmp/recording_12.mp4 =404;
+    location = /recording_12 {
+        return 301 https://clipchamp.com/watch/XPvIgZnx6Sg;
     }
     location ~ / {
         proxy_pass http://127.0.0.1:8001;
