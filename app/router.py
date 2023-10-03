@@ -9,7 +9,7 @@ from pika.channel import Channel
 
 from app.db import get_db
 from app.services.video import create_video, merge_chunks, get_video
-from app.schemas.video import Chunk, VideoIn
+from app.schemas.video import VideoIn
 from app.services.backgroud_tasks import save_chunk
 from app.queque import get_channel
 from app.settings import settings

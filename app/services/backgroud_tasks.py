@@ -3,7 +3,6 @@ from typing import BinaryIO
 from fastapi import UploadFile
 
 from app.settings import settings
-from app.schemas.video import Chunk
 
 
 def save_chunk(file_id: str, chunks: UploadFile, chunk_num: int):

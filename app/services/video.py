@@ -27,12 +27,12 @@ def create_video(
             'created_at': datetime.utcnow(),
         })
 
-        file_path = f'{settings.SAVE_DIR}/{result.inserted_id}'
-
+        # create save dir if it does not exist
         os.makedirs(f'{settings.SAVE_DIR}', mode=0o711, exist_ok=True)
 
         return str(result.inserted_id), None
     except Exception as err:
+        print(err)
         return None, HTTPException(status_code=500,
                                    detail="Error creating new video")
 
@@ -58,9 +58,15 @@ def get_video(
 ) -> tuple[Video, HTTPException]:
     """gets video from db"""
 
-    file = db[settings.COLLECTION_NAME].find_one({'_id': ObjectId(file_id)})
+    collection = db[settings.COLLECTION_NAME]
+
+    file = collection.find_one({'_id': ObjectId(file_id)})
     if not file:
         return None, HTTPException(status_code=404,
                                    detail="That video does not exist")
+
+    if not file['completed']:
+        return None, HTTPException(status_code=400,
+                                   detail="Video still being processed")
 
     return file, None
