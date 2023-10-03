@@ -12,6 +12,7 @@ class Settings:
     COLLECTION_NAME = config('COLLECTION_NAME', default='videos')
     SAVE_DIR = config('SAVE_DIR', default='/tmp/videos')
     CHUNKS_DIR = config('CHUNKS_DIR', default='/tmp/chunks')
+    AUDIO_DIR = config('AUDIO_DIR', default='/tmp/audio_chunks')
     SERVER_URL = config('SERVER_URL', default='http://localhost:8001')
     RABBITMQ_HOST = config('RABBITMQ_HOST', default='localhost')
     RABBITMQ_PORT = config('RABBITMQ_PORT', default=5672, cast=int)

@@ -61,7 +61,7 @@ def transcribe(channel, method, properties, body):
 
     try:
         file_id = json.loads(body).get('file_id')
-        audio_dir = f'/tmp/audio_chunks/{file_id}'
+        audio_dir = f'{settings.AUDIO_DIR}/{file_id}'
         audio_file = f'{audio_dir}/{file_id}.wav'
         video_path = f'{settings.SAVE_DIR}/{file_id}.mp4'
 
