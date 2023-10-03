@@ -4,14 +4,13 @@ import numpy as np
 from app.settings import settings
 
 
-def generate_link(collection: str, file_id: str) -> str:
-    """generates a link to a video"""
-
-    return f'{settings.SERVER_URL}/videos/{collection}/{file_id}'
-
-
 def combine_chunks_to_video(chunks: list[str], output_path: str):
-    # Get a list of chunk files in the directory
+    """
+    combines chunks of video into a single video
+
+    :param chunks: list of paths to chunks
+    :param output_path: path to save combined video
+    """
 
     chunk_data = []
     for chunk_file in chunks:
