@@ -13,6 +13,10 @@ from app.helpers import combine_chunks_to_video
 
 
 def merge(channel, method, properties, body):
+    """
+    consumer of VIDEO_QUEUE. merges chunks into a video
+    and publish to TRANSCRIBE_QUEUE
+    """
     sleep(5)
 
     try:
@@ -20,23 +24,17 @@ def merge(channel, method, properties, body):
         file_path = f'{settings.SAVE_DIR}/{file_id}'
         chunks_dir = f'{settings.CHUNKS_DIR}/{file_id}'
 
-        # with open(file_path, 'w+b') as f:
-        #     chunks = sorted([chunk.path for chunk in os.scandir(chunks_path)])
-        #     for chunk in chunks:
-        #         print(chunk)
-        #         with open(chunk, 'rb') as c:
-        #             f.write(c.read())
-        # return
-        # mp.concatenate_videoclips(
-        #     [mp.VideoFileClip(chunk) for chunk in chunks]).write_videofile(file_path)
+        #  get a sorted list of paths to chunks
         chunks = sorted([chunk.path for chunk in os.scandir(chunks_dir)])
 
-        combine_chunks_to_video(chunks, f'{file_path}.mp4')
+        combine_chunks_to_video(chunks, f'{file_path}.mp4')  # combine chunks
 
-        # shutil.rmtree(f'{settings.CHUNKS_DIR}/{file_id}')
+        # shutil.rmtree(f'{settings.CHUNKS_DIR}/{file_id}') #  remove chunks
 
         db, session = get_db_unyield()
-        result = db[settings.COLLECTION_NAME].update_one(
+        collection = db[settings.COLLECTION_NAME]
+
+        result = collection.update_one(
             {'_id': file_id},
             {'$set': {'completed': True, 'file_loc': f'{file_path}.mp4'}}
         )
@@ -74,7 +72,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print('Interrupted')
+        print('MERGER SERVICE STOPPED ❌')
         try:
             exit(0)
         except SystemExit:
