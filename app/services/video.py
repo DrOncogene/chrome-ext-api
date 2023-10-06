@@ -5,6 +5,7 @@ import os
 from fastapi.exceptions import HTTPException
 from bson.objectid import ObjectId
 from pymongo.database import Database
+import pika
 from pika.channel import Channel
 
 from app.schemas.video import Video
@@ -15,7 +16,7 @@ def create_video(
     file_type: str,
     db: Database
 ) -> tuple[str, HTTPException]:
-    """creates a new video in db"""
+    """creates a new video entry in db"""
     collection = db[settings.COLLECTION_NAME]
 
     try:
@@ -37,18 +38,21 @@ def create_video(
                                    detail="Error creating new video")
 
 
-def merge_chunks(
+def publish_merge_job(
     file_id: str,
     channel: Channel
 ) -> tuple[bool, HTTPException]:
-    """adds a chunk of data to a video"""
+    """publishes a merge job to the queue"""
     channel.queue_declare(queue=settings.VIDEO_QUEUE, durable=True)
     channel.basic_publish(
         exchange='',
         routing_key=settings.VIDEO_QUEUE,
         body=json.dumps({
             'file_id': file_id,
-        })
+        }),
+        properties=pika.BasicProperties(
+            delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+        )
     )
 
 

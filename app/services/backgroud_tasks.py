@@ -1,4 +1,4 @@
-from typing import BinaryIO
+import shutil
 
 from fastapi import UploadFile
 
@@ -10,5 +10,5 @@ def save_chunk(file_id: str, chunks: UploadFile, chunk_num: int):
 
     chunks_dir = f'{settings.CHUNKS_DIR}/{file_id}'
 
-    with open(f'{chunks_dir}/{chunk_num}', 'w+b') as f:
-        f.write(chunks.file.read())
+    with open(f'{chunks_dir}/{chunk_num}.webm', 'wb') as chunk_file:
+        shutil.copyfileobj(chunks.file, chunk_file)
