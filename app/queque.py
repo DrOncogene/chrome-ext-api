@@ -10,6 +10,7 @@ def get_channel() -> Channel:
                              port=settings.RABBITMQ_PORT))
     try:
         channel = connection.channel()
+        channel.basic_qos(prefetch_count=1)
         yield channel
     finally:
         connection.close()
@@ -21,4 +22,6 @@ def get_channel_unyield() -> Channel:
                              port=settings.RABBITMQ_PORT))
 
     channel = connection.channel()
+    channel.basic_qos(prefetch_count=1)
+
     return channel
