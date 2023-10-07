@@ -17,7 +17,7 @@ class Settings:
     RABBITMQ_PORT = config('RABBITMQ_PORT', default=5672, cast=int)
     VIDEO_QUEUE = config('VIDEO_QUEUE', default='videos')
     TRANSCRIBE_QUEUE = config('TRANSCRIBE_QUEUE', default='transcripts')
-    RETRY_COUNT = config('RETRY_COUNT', default=3, cast=int)
+    MAX_RETRIES = config('MAX_RETRIES', default=3, cast=int)
     OPENAI_SECRET = config('OPENAI_SECRET')
 
 
