@@ -1,36 +1,21 @@
 const startBtn = document.querySelector(".start-btn");
 const stopBtn = document.querySelector(".stop-btn");
+const form = document.querySelector(".video-form");
 
-let stream;
-let recorder;
+let mediaStream;
+let mediaRecorder;
 
 startBtn.addEventListener("click", async (e) => {
-  const videoStream = await navigator.mediaDevices.getDisplayMedia({
-    video: { mediaSource: "screen" },
-    audio: true,
-  });
-  const audioStream = await navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: false,
-  });
-
-  stream = new MediaStream([
-    ...videoStream.getVideoTracks(),
-    ...audioStream.getAudioTracks(),
-  ]);
-
-  recorder = new MediaRecorder(stream, {
-    mimeType: "video/webm",
-  });
-
   let chunks = [];
   let file_id;
   let count = 0;
 
+  [mediaStream, mediaRecorder] = await createRecorder("video/webm");
+
   const res = await fetch("http://localhost:8001/upload/new", {
     method: "POST",
     body: JSON.stringify({
-      file_type: "mp4",
+      file_type: "webm",
     }),
     headers: {
       "Content-Type": "application/json",
@@ -41,41 +26,29 @@ startBtn.addEventListener("click", async (e) => {
   console.log(res);
   file_id = res.data.file_id;
 
-  recorder.ondataavailable = async (e) => {
-    console.log(e.data.type, count);
-    let chunk;
-    let blob_count = count;
+  mediaRecorder.ondataavailable = async (e) => {
+    let is_final = false;
+
+    console.log("blob: ", count);
 
     if (e.target.state === "inactive") {
       console.log("final chunk");
-      chunk = {
-        data: e.data,
-        blob_num: blob_count + 1,
-        is_final: true,
-      };
-    } else {
-      chunk = {
-        data: e.data,
-        blob_num: blob_count + 1,
-        is_final: false,
-      };
+      is_final = true;
     }
 
-    chunks.push(chunk);
+    chunks.push(e.data);
 
     if (chunks.length === 3 || e.target.state === "inactive") {
       count = count + 1;
-      const blobs = [];
-      for (let chunk of chunks) {
-        blobs.push(chunk.data);
-      }
+
+      const blob = new Blob(chunks, {
+        type: "video/webm",
+      });
 
       const fd = new FormData();
       fd.append("file_id", file_id);
-      for (let chunk of chunks) {
-        fd.set("is_final", chunk.is_final);
-      }
-      fd.append("chunk", new Blob(blobs, { type: "video/webm" }));
+      fd.set("is_final", is_final);
+      fd.append("chunk", blob);
       fd.append("chunk_num", count);
 
       const res = await fetch("http://localhost:8001/upload/chunks", {
@@ -89,14 +62,40 @@ startBtn.addEventListener("click", async (e) => {
     }
   };
 
-  recorder.onstop = (e) => {
+  mediaRecorder.onstop = (e) => {
     console.log("recorder stopped");
-    stream.getTracks().forEach((track) => track.stop());
   };
 
-  recorder.start(10000);
+  mediaRecorder.start(10000);
 });
 
-stopBtn.addEventListener("click", (e) => {
-  recorder.stop();
+stopBtn.addEventListener("click", async (e) => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    console.log("stop button clicked, stop event fired");
+    mediaStream.getTracks().forEach((track) => track.stop());
+    await navigator.mediaDevices.getUserMedia({ video: false });
+  }
 });
+
+async function createRecorder(mimeType) {
+  const videoStream = await navigator.mediaDevices.getDisplayMedia({
+    video: { mediaSource: "screen" },
+    audio: true,
+  });
+  const audioStream = await navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: false,
+  });
+
+  const stream = new MediaStream([
+    ...videoStream.getVideoTracks(),
+    ...audioStream.getAudioTracks(),
+  ]);
+
+  const recorder = new MediaRecorder(stream, {
+    mimeType: mimeType,
+  });
+
+  return [stream, recorder];
+}
