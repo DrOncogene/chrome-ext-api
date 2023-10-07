@@ -1,14 +1,13 @@
-import json
 import os
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, BackgroundTasks, Body, Form, UploadFile
+from fastapi import APIRouter, Depends, BackgroundTasks, Form, UploadFile
 from fastapi.responses import FileResponse
 from pymongo.database import Database
 from pika.channel import Channel
 
 from app.db import get_db
-from app.services.video import create_video, merge_chunks, get_video
+from app.services.video import create_video, publish_merge_job, get_video
 from app.schemas.video import VideoIn
 from app.services.backgroud_tasks import save_chunk
 from app.queque import get_channel
@@ -50,17 +49,16 @@ async def upload_chunks(
     channel: Channel = Depends(get_channel)
 ):
     """
-    uploads chunks of data
+    uploads chunks of a video
     """
-    print(chunk)
 
+    # create chunks directory if it doesn't exist
     os.makedirs(f'{settings.CHUNKS_DIR}/{file_id}', mode=0o771, exist_ok=True)
 
+    # save chunk to disk in the background
     background_tasks.add_task(save_chunk, file_id, chunk, chunk_num)
     if is_final:
-        print('final chunk recieved')
-        print(f'recieved {chunk_num} chunks')
-        merge_chunks(file_id, channel)
+        publish_merge_job(file_id, channel)
 
     return {
         'status_code': 201,
@@ -87,4 +85,4 @@ async def fetch_video(video_id: str, db: Database = Depends(get_db)):
             'data': None
         }
 
-    return FileResponse(file['file_loc'], media_type='video/mp4')
+    return FileResponse(file['file_loc'], media_type='video/webm')
