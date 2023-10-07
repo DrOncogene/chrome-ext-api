@@ -1,91 +1,70 @@
 import json
-import math
 import os
 from sys import exit
+import shutil
+from time import sleep
 
-from moviepy import editor as mp
 import openai
-from pydub import AudioSegment
-from pydub.utils import make_chunks
 import ffmpeg
+from pika.channel import Channel
+from pika import BasicProperties
 
 from app.queque import get_channel_unyield
 from app.db import get_db_unyield
 from app.settings import settings
+from app.helpers import make_audio_chuncks
 
 
-openai.api_key = settings.OPENAPI_SECRET
+openai.api_key = settings.OPENAI_SECRET
 
 
-def make_audio_chuncks(audio_path: str, audio_file: str):
-    """
-    creates 24MB chunks of audio from audio_file 
-    saving them in audio_path
-
-    :param audio_path: path to save audio chunks
-    :param audio_file: path to audio file
-
-    :return: total number of chunks
-    """
-    print('creating audio chunks')
-    audio = AudioSegment.from_file(audio_file)
-    channel_count = audio.channels
-    sample_width = audio.sample_width
-    duration_in_sec = len(audio)/1000
-    sample_rate = audio.frame_rate
-    bit_depth = sample_width * 8
-
-    file_size = (
-        sample_rate * bit_depth * channel_count * duration_in_sec) / 8
-
-    split_size = 24 * 1024 * 1024
-    total_chunks = file_size // split_size
-
-    chunk_length_sec = math.ceil((duration_in_sec * split_size)/file_size)
-    chunk_length_ms = chunk_length_sec * 1000
-    chunks = make_chunks(audio, chunk_length_ms)
-
-    for i, chunk in enumerate(chunks):
-        chunk_name = f'{audio_path}/chunk{i}.wav'
-        chunk.export(chunk_name, format='wav')
-
-    return total_chunks
-
-
-def transcribe(channel, method, properties, body):
+def transcribe(ch: Channel, method, properties: BasicProperties, body):
     """
     transcription callback to consume from TRANSCRIBE_QUEUE
     extract audio from video, create 24MB chunks and transcribe
     via openai whisper api
     """
+    file_id = json.loads(body).get('file_id')
+    audio_dir = f'{settings.AUDIO_DIR}/{file_id}'
+    audio_file = f'{audio_dir}/{file_id}.mp3'
+    video_path = f'{settings.SAVE_DIR}/{file_id}.webm'
+
+    if properties.headers:
+        retries = properties.headers.get('x-retries', 0)
+    else:
+        properties.headers = {'x-retries': 0}
+        retries = 0
+
+    os.makedirs(audio_dir, mode=0o771, exist_ok=True)
+    print('transcribing...', video_path)
 
     try:
-        file_id = json.loads(body).get('file_id')
-        audio_dir = f'{settings.AUDIO_DIR}/{file_id}'
-        audio_file = f'{audio_dir}/{file_id}.wav'
-        video_path = f'{settings.SAVE_DIR}/{file_id}.mp4'
-
-        os.makedirs(audio_dir, mode=0o771, exist_ok=True)
-
-        # ffmpeg.input(f'{settings.SAVE_DIR}/{file_id}.mp4'
-        #              ).output(audio_file).run()
-
-        audio = mp.VideoFileClip(video_path).audio
-
-        if audio is None:
-            print(f'no audio in video {video_path}')
-            return
-
-        audio.write_audiofile(audio_file)
+        probe = ffmpeg.probe(video_path, v='error', select_streams='a:0',
+                             show_entries='stream=codec_name')
+        print('probing...')
+        if len(probe['streams']) > 0:
+            (
+                ffmpeg
+                .input(video_path, format='webm', v='error')
+                .output(audio_file, v='error')
+                .run(overwrite_output=True)
+            )
+        else:
+            raise ValueError('No audio stream found in video')
 
         total_chunks = make_audio_chuncks(audio_dir, audio_file)
 
-        for i in range(total_chunks):
-            transcript_file = open(
-                f'{settings.SAVE_DIR}/{file_id}.txt', 'w+t')
-            with open(f'{audio_dir}/chunk{i}.wav', 'rb') as f:
-                transcript = openai.Audio.transcribe("whisper-2", file=f)
-                transcript_file.write(transcript['text'])
+        transcript_file = f'{settings.SAVE_DIR}/{file_id}.txt'
+
+        with open(transcript_file, 'w+t') as f:
+            for i in range(total_chunks):
+                file = f'{audio_dir}/chunk_{i}.mp3'
+                with open(file, 'rb') as c:
+                    transcript = openai.Audio.transcribe(
+                        'whisper-1', c, response_format='vtt')
+                    print(f'transcript: {transcript}')
+                    f.write(transcript)
+                sleep(20.0)
 
         db, session = get_db_unyield()
         collection = db[settings.COLLECTION_NAME]
@@ -95,13 +74,36 @@ def transcribe(channel, method, properties, body):
             {'$set': {'transcribed': True}}
         )
 
-        os.rmdir(audio_dir)  # remove audio chunks
+        shutil.rmtree(audio_dir)  # remove audio chunks
 
         session.end_session()
+        ch.basic_ack(delivery_tag=method.delivery_tag)
         print(f'[*] Transcription complete for video {video_path}')
     except Exception as err:
         print(err)
-        print(f"[*] Unable to process video {file_id}")
+
+        if retries < settings.MAX_RETRIES:
+            retries += 1
+
+            requeue_delay = float(2 ** retries)
+
+            properties.headers['x-retries'] = retries
+
+            sleep(requeue_delay)
+
+            ch.basic_publish(
+                exchange='',
+                routing_key=settings.TRANSCRIBE_QUEUE,
+                body=body,
+                properties=properties
+            )
+            ch.basic_reject(delivery_tag=method.delivery_tag, requeue=False)
+            print(f'[*] Transcription failed for video {video_path}, '
+                  f'requeueing for retry {retries}')
+        else:
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+            print(f"[*] UNABLE TO TRANSCRIBE video {video_path} "
+                  f"after {retries} retries")
 
 
 def main():
@@ -110,7 +112,6 @@ def main():
 
     channel.basic_consume(
         queue=settings.TRANSCRIBE_QUEUE,
-        auto_ack=True,
         on_message_callback=transcribe
     )
 
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print('TRANSCRIPTION SERVICE STOPPED ❌')
+        print('\nTRANSCRIPTION SERVICE STOPPED ❌')
         try:
             exit(0)
         except SystemExit:
