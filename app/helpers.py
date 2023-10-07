@@ -1,54 +1,63 @@
-import cv2
-import numpy as np
+import ffmpeg
 
-from app.settings import settings
+from pydub import AudioSegment
 
 
-def combine_chunks_to_video(chunks: list[str], output_path: str):
+def combine_chunks(chunks: list[str], output: str) -> bool:
     """
     combines chunks of video into a single video
 
-    :param chunks: list of paths to chunks
-    :param output_path: path to save combined video
+    :param `chunks`: list of paths to chunks
+    :param `output`: path to save combined video
+
+    :return: True if successful, False otherwise
+    """
+    try:
+        (
+            ffmpeg
+            .input(f'concat:{"|".join(chunks)}', f='webm', v='error')
+            .output(output, crf=18, preset='veryfast',
+                    strict='experimental', v='error')
+            .run(overwrite_output=True)
+        )
+
+        return True
+    except Exception as err:
+        print(err)
+        return False
+
+
+def make_audio_chuncks(audio_path: str, audio_file: str) -> int:
+    """
+    creates 24MB chunks of audio from audio_file
+    saving them in audio_path
+
+    :param `audio_path`: path to save audio chunks
+    :param `audio_file`: path to audio file
+
+    :return: total number of chunks
     """
 
-    chunk_data = []
-    for chunk_file in chunks:
-        with open(chunk_file, 'rb') as file:
-            chunk_data.append(file.read())
+    print('creating audio chunks..')
+    chunk_size = 24 * 1024 * 1024
 
-    # Combine the binary chunks
-    video_data = b''.join(chunk_data)
-    print(len(video_data))
+    audio: AudioSegment = AudioSegment.from_file(audio_file)
 
-    # Define frame width, height, and frame rate
-    frame_width = 640
-    frame_height = 480
-    frame_rate = 30.0
-    channel = 3  # Assuming 3 channels (e.g., RGB)
+    i = 0
+    while len(audio) > 0:
+        # calculate length of 24mb chunk in milliseconds
+        size_ms = int(
+            chunk_size / ((audio.frame_rate / 1000) * audio.frame_width))
 
-    # Create a VideoWriter object
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # codec
-    writer = cv2.VideoWriter(output_path, fourcc,
-                             frame_rate, (frame_width, frame_height))
+        # if audio is less than 24mb, use its length
+        size_ms = min(size_ms, len(audio))
 
-    # Initialize variables for tracking frame position
-    frame_pos = 0
-    frame_size = frame_width * frame_height * channel
+        chunk = audio[:size_ms]
 
-    # Read frames from the video data and write them to the output video
-    while frame_pos < len(video_data):
-        frame_data = video_data[frame_pos:frame_pos + frame_size]
-        if len(frame_data) != frame_size:
-            #  Add padding at the end of the last frame
-            padding = frame_size - len(frame_data)
-            frame_data += b'\x00' * padding
+        audio = audio[size_ms:]
 
-        # Reshape frame data and write it to the video
-        frame = np.frombuffer(frame_data, dtype=np.uint8).reshape(
-            frame_height, frame_width, 3)
-        writer.write(frame)
-        frame_pos += frame_size
+        chunk.export(f'{audio_path}/chunk_{i}.mp3', format='mp3')
 
-    # Release the VideoWriter and close the video file
-    writer.release()
+        i += 1
+
+    return i
