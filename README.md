@@ -1,84 +1,90 @@
-# HNGX Stage 5 task
-
 ## Description
 
 A backend api for a chrome extension that functions as a screen recorder. The api processes and stored the video files.
 
 ## Technologies
 
-- Python 3.11
+- Python 3.12
 - FastAPI
-- Pymongo
+- [Motor ODM](https://motor.readthedocs.io/en/stable/index.html) for MongoDB
 - mongodb on docker
+- RabbitMQ (docker or [cloud AMQP](https://www.cloudamqp.com/))
 - poetry or pip for dependency management
+- Docker compose
+- OPENAI Whisper API
 
-## Installation
+## Setup
 
 - Clone the repo
-- Install poetry
+- Install poetry [here](https://python-poetry.org/docs/)
 - Run `poetry install` to install dependencies
 - Run `poetry shell` to activate the virtual environment
 - Or use pip to install dependencies from `requirements.txt`: `pip install -r requirements.txt`
-- Set environment variables: see `.env.example`
-- Spin up a mongodb instance on docker: `docker run -d -p 27017:27017 --name mongodb mongo:latest`
-- Spin up rabbitmq instance on docker: `docker run -d -p 5672:5672 -p 15672:15672 -p 15692:15692 --name rabbitmq rabbitmq:latest`
-- Both rabbitmq and mongodb can also be installed manually without docker
-- Install ffmpeg: `sudo apt install ffmpeg`, version `4.4.2` was used for this project
-- Check [here](https://phoenixnap.com/kb/ffmpeg-windows) for instructions on installing ffmpeg on windows
-- Run `python3 main.py` to start the server
-- In separate terminals, run:
-  - Run `python3 merger.py` to start the video merger service
-  - Run `python3 transribe.py` to start the video transcription service
-- You can run multiple instances (workers) of the merger and transcription services to speed up the video processing
+- Set environment variables: see `server/app/settings.py`
+- Create a `secrets/` folder in `server/` and add files `openai_secret` and `rabbitmq_url`.
+- Run `docker compose up -d` to bring up the services
 
 ## Endpoints
 
-- POST /upload/new: Start recording a new video
+1. POST `/upload/new`: Start recording a new video
 
-  - Request body:
+- Request body:
 
-  ```
-  {
-    file_type: str
+```
+{
+  file_type: str
+}
+```
+
+- Response:
+
+```
+{
+  status_code: int,
+  message: str,
+  data: {
+    file_id: str
   }
-  ```
+}
+```
 
-  - Response:
+2. POST `/upload/chunks`: Upload a chunk of the video
 
-  ```
-  {
-    status_code: int,
-    message: str,
-    data: {
-      file_id: str
-    }
-  }
-  ```
+- Request body: formData with fields:
 
-- POST /upload/chunks: Upload a chunk of the video
+```
+{
+  file_id: str,
+  chunk: Blob,
+  is_final: boolean
+  chunk_num: int
+}
+```
 
-  - Request body: formData with fields:
+- Response:
 
-  ```
-  {
-    file_id: str,
-    chunk: Blob,
-    is_final: boolean
-    chunk_num: int
-  }
-  ```
+```
+{
+  status_code: int,
+  message: str,
+  data: null
+}
+```
 
-  - Response:
+3. GET `/videos/{file_id}`: Get a video
 
-  ```
-  {
-    status_code: int,
-    message: str,
-    data: null
-  }
-  ```
+- Response: Video file
 
-- GET /videos/{file_id}: Get a video
-  - Response: Video file
+4. GET `/videos`: Get all videos
+
+- Response: List of
+
+5. GET `/search?{query_str}`: Search videos
+
+- Response: List of videos that match the `query_str`
 
 ## Enjoy!
+
+### Note
+
+- Check `client/README.md` for the client/extension
