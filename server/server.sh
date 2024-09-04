@@ -13,10 +13,6 @@ sudo printf %s "server {
     root /var/www/html;
     index index.html;
     server_name crome-ext-api.droncogene.com;
-#    server_name 35.193.20.212;
-    location = /recording_12 {
-        return 301 https://clipchamp.com/watch/XPvIgZnx6Sg;
-    }
     location ~ / {
         proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host \$host;
@@ -56,7 +52,8 @@ USER="mypythtesting"
 APP_DIRECTORY="/app/chrome_ext_api"
 VENV_PATH="/app/chrome_ext_api/.venv"
 UVICORN_OPTIONS="--host 0.0.0.0 --port 8001"
-# Create a systemd service unit file
+
+# Create a systemd service unit file for application server
 echo "[Unit]
 Description=Backend API for Chrome Extension
 [Service]
@@ -66,6 +63,29 @@ ExecStart=$VENV_PATH/bin/uvicorn main:app $UVICORN_OPTIONS
 Restart=always
 [Install]
 WantedBy=multi-user.target" | sudo tee /etc/systemd/system/$APP_NAME.service > /dev/null
+
+# create a systemd service unit file for the merger consumer
+echo "[Unit]
+Description=Merger consumer service for Chrome Extension API
+[Service]
+User=$USER
+WorkingDirectory=$APP_DIRECTORY
+ExecStart=$VENV_PATH/bin/uvicorn main:app $UVICORN_OPTIONS
+Restart=always
+[Install]
+WantedBy=multi-user.target" | sudo tee /etc/systemd/system/$APP_NAME.service > /dev/null
+
+# create a systemd service unit file for the transcription consumer
+echo "[Unit]
+Description=Merger consumer service for Chrome Extension API
+[Service]
+User=$USER
+WorkingDirectory=$APP_DIRECTORY
+ExecStart=$VENV_PATH/bin/uvicorn main:app $UVICORN_OPTIONS
+Restart=always
+[Install]
+WantedBy=multi-user.target" | sudo tee /etc/systemd/system/$APP_NAME.service > /dev/null
+
 # Reload systemd
 sudo systemctl daemon-reload
 #stop the service

@@ -1,0 +1,96 @@
+name: extension
+
+services:
+  # rabbitmq:
+  #   image: rabbitmq:3-management
+  #   hostname: rabbitmq
+  #   ports:
+  #     - 5672:5672
+  #     - 15672:15672
+  #     - 15692:15692
+  #   volumes:
+  #     - /data/rabbitmq:/var/lib/rabbitmq
+  #   restart: always
+  #   healthcheck:
+  #     test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+  #     interval: 30s
+  #     timeout: 30s
+  #     retries: 3
+
+  mongodb:
+    image: droncogene/mongodb.slim:latest
+    hostname: mongodb
+    ports:
+      - 27017:27017
+    volumes:
+      - /data/mongodb:/data/db
+    restart: always
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    hostname: api-service
+    restart: always
+    depends_on: &app_depends
+      - mongodb
+    ports:
+      - 8001:8001
+    env_file:
+      - ./.env
+    volumes: &app_volume
+      - /tmp/chunks:/tmp/chunks
+      - /tmp/videos:/tmp/videos
+      - /tmp/audio_chunks:/tmp/audio_chunks
+    secrets:
+      - rabbitmq_url
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./
+          target: /chrome-extension
+
+  merger:
+    build:
+      context: .
+      dockerfile: Dockerfile.merger
+    hostname: merger
+    restart: on-failure
+    depends_on: *app_depends
+    env_file:
+      - ./.env
+    volumes: *app_volume
+    secrets:
+      - rabbitmq_url
+    deploy:
+      replicas: 2
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./consumers/merger.py
+          target: /chrome-extension/consumers/merger.py
+
+  transcriber:
+    build:
+      context: .
+      dockerfile: Dockerfile.transcriber
+    hostname: transcriber
+    restart: on-failure
+    depends_on: *app_depends
+    env_file:
+      - ./.env
+    volumes: *app_volume
+    secrets:
+      - rabbitmq_url
+      - openai_secret
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./consumers/transcribe.py
+          target: /chrome-extension/consumers/transcribe.py
+
+secrets:
+  rabbitmq_url:
+    file: ./secrets/rabbitmq_url
+  openai_secret:
+    file: ./secrets/openai_secret

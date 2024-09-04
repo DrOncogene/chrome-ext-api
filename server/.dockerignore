@@ -1,0 +1,17 @@
+~
+.env
+.env.sample
+.venv
+.ruff_cache
+.setenvs.sh
+.deployments
+__pycache__
+Dockerfile
+docker-compose.yml
+setup-nginx.sh
+setup-nginx-docker.sh
+test.yml
+tests
+fabfile.py
+requirements.txt
+client
