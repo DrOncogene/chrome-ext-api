@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Oncogene Recorder",
+  "version": "0.1.0",
+  "description": "Extension to record your screen, save, and retrieve your screen records",
+  "author": "mypythtesting@gmail.com",
+  "incognito": "not_allowed",
+  "action": {
+    "default_title": "Oncogene Screen Recorder",
+    "default_popup": "index.html"
+  },
+  "permissions": [
+    "activeTab",
+    "desktopCapture",
+    "tabs",
+    "scripting"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ]
+}
